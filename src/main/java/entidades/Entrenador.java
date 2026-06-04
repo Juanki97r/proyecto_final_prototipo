@@ -24,12 +24,12 @@ public class Entrenador {
     @Column(name = "edad")
     private Integer edad;
     
-    // RELACIONES BIDIRECCIONALES
-    // Un Entrenador puede tener VARIOS Equipos (OneToMany)
-    // mappedBy indica que la relación es manejada desde el lado de Equipo mediante su atributo "entrenador"
-    // cascade = CascadeType.REMOVE hace que si se borra un entrenador, se borren todos sus equipos
-    @OneToMany(mappedBy = "entrenador", cascade = CascadeType.REMOVE)
-    private Collection<Equipo> equipos;
+    // RELACIÓN BIDIRECCIONAL ONE-TO-ONE
+    // Un Entrenador tiene UN Equipo y cada Equipo pertenece a UN Entrenador
+    // mappedBy indica que la relación se maneja desde el lado de Equipo mediante su atributo "entrenador"
+    // cascade = CascadeType.REMOVE hace que al borrar el entrenador también se borre su equipo
+    @OneToOne(mappedBy = "entrenador", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private Equipo equipo;
     
     // Un Entrenador puede tener VARIOS registros de Medallas (OneToMany)
     // Esta es una relación a través de una tabla de unión (Medallas)
@@ -72,12 +72,12 @@ public class Entrenador {
         this.edad = edad;
     }
 
-    public Collection<Equipo> getEquipos() {
-        return equipos;
+    public Equipo getEquipo() {
+        return equipo;
     }
 
-    public void setEquipos(Collection<Equipo> equipos) {
-        this.equipos = equipos;
+    public void setEquipo(Equipo equipo) {
+        this.equipo = equipo;
     }
 
     public Collection<Medallas> getMedallas() {

@@ -250,10 +250,10 @@ public class EntrenadorView extends JFrame {
 
             int id = Integer.parseInt(idStr);
 
-            // Verificar integridad referencial: no borrar si tiene equipos
+            // Verificar integridad referencial: no borrar si tiene un equipo asociado
             Entrenador entrenador = controller.findById(id);
-            if (entrenador != null && entrenador.getEquipos() != null && !entrenador.getEquipos().isEmpty()) {
-                JOptionPane.showMessageDialog(this, "No se puede eliminar el entrenador porque tiene equipos asociados");
+            if (entrenador != null && entrenador.getEquipo() != null) {
+                JOptionPane.showMessageDialog(this, "No se puede eliminar el entrenador porque tiene un equipo asociado");
                 return;
             }
 

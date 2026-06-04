@@ -17,13 +17,12 @@ public class Equipo {
     @Column(name = "codequipo")
     private int codequipo;
     
-    // RELACIÓN MANY-TO-ONE con ENTRENADOR
-    // Muchos Equipos pertenecen a UN Entrenador
-    // @JoinColumn especifica que la columna "identrenador" es la clave foránea
-    // Esta columna está en la tabla EQUIPO y hace referencia a la tabla ENTRENADOR
-    // La relación inversa está definida en Entrenador.equipos
-    @ManyToOne
-    @JoinColumn(name = "identrenador", nullable = false)
+    // RELACIÓN ONE-TO-ONE con ENTRENADOR
+    // Cada Equipo pertenece a UN Entrenador y cada Entrenador tiene UN Equipo
+    // @JoinColumn especifica que la columna "identrenador" es la clave foránea única
+    // La relación inversa está definida en Entrenador.equipo
+    @OneToOne(optional = false)
+    @JoinColumn(name = "identrenador", nullable = false, unique = true)
     private Entrenador entrenador;
     
     // RELACIÓN BIDIRECCIONAL ONE-TO-MANY
