@@ -4,50 +4,86 @@ import javax.persistence.Embeddable;
 import java.io.Serializable;
 
 /**
- * Clase que representa la clave compuesta de la tabla DetallePokemon
- * Esta tabla de unión tiene una clave primaria formada por:
- * - numpokedex (referencia a Pokemon)
- * - codtipo (referencia a Tipo)
+ * CLASE DETALLEPOKEMONPK (Clave Primaria Compuesta para DetallePokemon)
+ * ═════════════════════════════════════════════════════════════════════════════════
+ * Representa la clave primaria compuesta de la tabla DETALLEPOKEMON.
  * 
- * Esto representa qué tipos tiene cada Pokémon (un Pokémon puede tener varios tipos)
+ * ESTRUCTURA:
+ *   PRIMARY KEY (numpokedex, codtipo)
+ *   Significa: Un Pokémon tiene UNA sola entrada por Tipo
+ *   Un Pokémon puede tener múltiples tipos, pero no duplicados
+ * 
+ * EJEMPLO DE DATOS:
+ *   - {numpokedex: 6, codtipo: 10} → Charizard tiene Fuego
+ *   - {numpokedex: 6, codtipo: 3}  → Charizard tiene Volador
+ *   - {numpokedex: 25, codtipo: 13} → Pikachu tiene Eléctrico
+ * 
+ * PATRÓN @Embeddable:
+ *   Esta clase se embeberá en DetallePokemon mediante @EmbeddedId
+ *   @Embeddable: Indica que se puede embeberI en otra entidad
+ *   Implements Serializable: Requerido por JPA
  */
 @Embeddable
 public class DetallePokemonPK implements Serializable {
     
+    /**
+     * serialVersionUID: ID para serialización
+     * Requerido cuando implements Serializable
+     */
     private static final long serialVersionUID = 1L;
     
-    // Primer componente: número de Pokédex
+    /**
+     * NUMPOKEDEX: Número de Pokédex (primer componente)
+     * Referencia a POKEMON.numpokedex
+     * Especifica QUÉ Pokémon tiene el tipo
+     */
     private int numpokedex;
     
-    // Segundo componente: código de tipo
+    /**
+     * CODTIPO: Código de Tipo (segundo componente)
+     * Referencia a TIPO.codtipo
+     * Especifica QUÉ tipo tiene el Pokémon
+     */
     private int codtipo;
 
-    // Constructor vacío (requerido por JPA)
+    /** Constructor sin parámetros (requerido por JPA) */
     public DetallePokemonPK() {
     }
 
-    // Constructor completo
+    /**
+     * Constructor completo
+     * Facilita la creación:
+     *   new DetallePokemonPK(6, 10) → Charizard tiene Fuego
+     */
     public DetallePokemonPK(int numpokedex, int codtipo) {
         this.numpokedex = numpokedex;
         this.codtipo = codtipo;
     }
 
-    // Getters y Setters
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // GETTERS Y SETTERS
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /** GETTER: Número de Pokédex */
     public int getNumpokedex() {
         return numpokedex;
     }
 
+    /** SETTER: Asigna número de Pokédex */
     public void setNumpokedex(int numpokedex) {
         this.numpokedex = numpokedex;
     }
 
+    /** GETTER: Código de Tipo */
     public int getCodtipo() {
         return codtipo;
     }
 
+    /** SETTER: Asigna código de Tipo */
     public void setCodtipo(int codtipo) {
         this.codtipo = codtipo;
     }
+}
 
     // equals() y hashCode() OBLIGATORIOS para claves embebidas
     @Override

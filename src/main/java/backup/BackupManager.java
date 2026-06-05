@@ -24,26 +24,68 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Gestor de copias de seguridad en CSV para la base de datos Pokémon.
- *
- * Esta clase crea una carpeta de backup con la fecha y hora de ejecución,
- * genera un archivo CSV por cada tabla y permite restaurar desde la última copia.
- *
- * La restauración borra primero los datos existentes en el orden correcto
- * para preservar la integridad referencial y después inserta los datos desde CSV.
+ * CLASE BACKUPMANAGER
+ * ═════════════════════════════════════════════════════════════════════════════════
+ * Gestor completo de copias de seguridad en formato CSV para la BD Pokémon.
+ * 
+ * PROPÓSITO:
+ *   • Crear copias de seguridad (backups) de toda la base de datos
+ *   • Restaurar desde una copia de seguridad anterior
+ *   • Gestionar la integridad referencial durante operaciones de backup/restore
+ * 
+ * FUNCIONAMIENTO:
+ * 
+ * BACKUP (Crear copia):
+ *   1. Crea carpeta: backups/YYYYMMDD_HHMMSS/
+ *   2. Exporta cada tabla a un archivo CSV
+ *   3. Cada CSV tiene: Cabecera (nombres de columnas) + Datos
+ *   4. Retorna el Path de la carpeta creada
+ * 
+ * RESTORE (Restaurar copia):
+ *   1. Borra TODOS los datos en orden correcto (respeta FK)
+ *   2. Lee cada archivo CSV
+ *   3. Inserta datos en el mismo orden
+ *   4. Registra la restauración en last_restore.txt
+ * 
+ * ¿POR QUÉ CSV?
+ *   • Formato portable (editable, entendible)
+ *   • No requiere SQL dump (más seguro)
+ *   • Fácil de revisar manualmente
+ *   • Compatible con Excel/Calc
+ * 
+ * INTEGRIDAD REFERENCIAL:
+ *   • DELETE_TABLES: Tablas hijas primero, padres después
+ *   • RESTORE_TABLES: Tablas padres primero, hijas después
+ *   • Ejemplo: Borra Medallas antes que Gimnasio (FK)
  */
 public class BackupManager {
 
-    // Carpeta raíz donde se guardan todas las copias de seguridad
+    /**
+     * CONSTANTES DE CONFIGURACIÓN
+     * ════════════════════════════════════════════════════════════════════════════
+     */
+
+    /** Carpeta raíz donde se guardan todas las copias de seguridad */
     private static final String BACKUP_ROOT = "backups";
 
-    // Conexión JDBC a la base de datos. Debe coincidir con la configuración de persistence.xml.
+    /**
+     * CREDENCIALES JDBC
+     * 
+     * IMPORTANTE: Deben coincidir con persistence.xml
+     * • JDBC_URL: Dirección de la BD
+     *   - 127.0.0.1:3306 → MySQL local, puerto 3306
+     *   - proyectopokemon → nombre de la BD
+     *   - serverTimezone=UTC → Zona horaria (evita warnings)
+     * • JDBC_USER / PASSWORD: Usuario y contraseña MySQL
+     */
     private static final String JDBC_URL = "jdbc:mysql://127.0.0.1:3306/proyectopokemon?serverTimezone=UTC";
     private static final String JDBC_USER = "juancarlos";
     private static final String JDBC_PASSWORD = "1234";
 
-    // Orden de exportación / respaldo de tablas. Este orden no necesita ser estrictamente inverso,
-    // solo se usa para crear los archivos. La restauración usa otro orden que respeta dependencias.
+    /**
+     * BACKUP_TABLES: Orden de exportación (no crítico)
+     * El orden de exportación no afecta la integridad (no hay transacción)
+     */
     private static final String[] BACKUP_TABLES = {
             "Region",
             "Entrenador",
@@ -56,7 +98,24 @@ public class BackupManager {
             "DetalleEquipo"
     };
 
-    // Orden de restauración: primero tablas padre, luego tablas hijas.
+    /**
+     * RESTORE_TABLES: Orden de RESTAURACIÓN (CRÍTICO)
+     * 
+     * Restauramos en este orden PORQUE:
+     *   1. Region → Base de datos (no tiene FK)
+     *   2. Entrenador → Base de datos (no tiene FK)
+     *   3. Tipo → Base de datos (no tiene FK)
+     *   4. Pokemon → Base de datos (no tiene FK)
+     *   5. Gimnasio → Refiere a Region (Region ya existe)
+     *   6. Equipo → Refiere a Entrenador (Entrenador ya existe)
+     *   7. Medallas → Refiere a Entrenador y Gimnasio (ambos existen)
+     *   8. DetallePokemon → Refiere a Pokemon y Tipo (ambos existen)
+     *   9. DetalleEquipo → Refiere a Equipo y Pokemon (ambos existen)
+     * 
+     * Si restauramos en orden incorrecto:
+     *   • Gymnasio se inserta ANTES de Region → ERROR FK
+     *   • Datos no se restauran correctamente
+     */
     private static final String[] RESTORE_TABLES = {
             "Region",
             "Entrenador",
@@ -69,10 +128,21 @@ public class BackupManager {
             "DetalleEquipo"
     };
 
-    // Archivo que almacena la fecha de la última restauración realizada.
+    /** Archivo que almacena info de la última restauración */
     private static final Path LAST_RESTORE_FILE = Paths.get(BACKUP_ROOT).resolve("last_restore.txt");
 
-    // Orden de borrado: primero tablas hijas, luego tablas padre.
+    /**
+     * DELETE_TABLES: Orden de BORRADO (CRÍTICO)
+     * 
+     * Borramos en orden INVERSO a la creación:
+     *   • Primero: Tablas hijas (DetalleEquipo, DetallePokemon, Medallas)
+     *   • Después: Tablas intermedias (Equipo, Gimnasio, Pokemon, Tipo)
+     *   • Finalmente: Tablas padres (Entrenador, Region)
+     * 
+     * Si borramos en orden incorrecto:
+     *   • Intenta borrar Entrenador pero Equipo refiere a él → ERROR FK
+     *   • La base de datos impide el borrado
+     */
     private static final String[] DELETE_TABLES = {
             "DetalleEquipo",
             "DetallePokemon",
@@ -86,22 +156,48 @@ public class BackupManager {
     };
 
     /**
-     * Crea una copia de seguridad completa de todas las tablas en formato CSV.
-     *
-     * @return Path de la carpeta creada con los CSV.
-     * @throws SQLException si hay un error de consulta a la base de datos.
-     * @throws IOException  si hay un error al escribir los archivos.
+     * CREAR COPIA DE SEGURIDAD
+     * ════════════════════════════════════════════════════════════════════════════
+     * 
+     * Crea una carpeta con timestamp y exporta todas las tablas a CSV.
+     * 
+     * OPERACIONES:
+     *   1. Crear carpeta: backups/YYYYMMDD_HHMMSS/
+     *   2. Para cada tabla en BACKUP_TABLES:
+     *      a. Ejecutar: SELECT * FROM tabla
+     *      b. Escribir resultado a: tabla.csv
+     *      c. Primera línea: nombres de columnas
+     *      d. Siguientes líneas: datos (uno por fila)
+     * 
+     * EJEMPLO DE CSV:
+     *   ──────────────────────────────────────────
+     *   "identrenador","nombre","edad"
+     *   "1","Ash Ketchum","10"
+     *   "2","Misty","10"
+     *   ──────────────────────────────────────────
+     * 
+     * MANEJO DE ERRORES:
+     *   • SQLException: Si MySQL no responde
+     *   • IOException: Si no puedo escribir archivos (permisos)
+     * 
+     * @return Path de la carpeta creada (ej: backups/20260604_153021/)
+     * @throws SQLException si hay error en SELECT de la BD
+     * @throws IOException  si hay error escribiendo archivos CSV
      */
     public Path crearCopiaDeSeguridad() throws SQLException, IOException {
+        // Crear carpeta raíz si no existe
         Path backupsRoot = Paths.get(BACKUP_ROOT);
         if (Files.notExists(backupsRoot)) {
             Files.createDirectories(backupsRoot);
         }
 
+        // Generar timestamp: YYYYMMDD_HHMMSS
+        // Ejemplo: 20260604_153021 (4 junio 2026, 15:30:21)
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
         Path backupFolder = backupsRoot.resolve(timestamp);
         Files.createDirectories(backupFolder);
 
+        // Conectar a BD y exportar cada tabla
         try (Connection connection = obtenerConexion()) {
             for (String tabla : BACKUP_TABLES) {
                 exportarTablaACsv(connection, tabla, backupFolder);
@@ -112,11 +208,20 @@ public class BackupManager {
     }
 
     /**
-     * Restaura la última copia de seguridad encontrada en la carpeta de backups.
-     *
-     * @return Path de la carpeta restaurada.
-     * @throws SQLException si hay un error en la base de datos.
-     * @throws IOException  si falta un archivo CSV o hay problema al leerlo.
+     * RESTAURAR ÚLTIMA COPIA
+     * ════════════════════════════════════════════════════════════════════════════
+     * 
+     * Restaura la copia de seguridad más reciente encontrada.
+     * Busca la carpeta más nueva en backups/ (orden alfabético por timestamp).
+     * 
+     * FLUJO:
+     *   1. Buscar última copia: obtenerUltimaCopia()
+     *   2. Si no existe: lanzar IOException
+     *   3. Si existe: llamar a restaurarCopia(path)
+     * 
+     * @return Path de la carpeta restaurada
+     * @throws SQLException si error en DELETE/INSERT a BD
+     * @throws IOException  si falta archivo CSV o no se encuentra copia
      */
     public Path restaurarUltimaCopia() throws SQLException, IOException {
         Path ultimaCopia = obtenerUltimaCopia();
@@ -127,29 +232,67 @@ public class BackupManager {
     }
 
     /**
-     * Restaura una copia de seguridad específica seleccionada por el usuario.
-     *
-     * @param copia Path de la carpeta de backup a restaurar.
-     * @return Path de la carpeta restaurada.
-     * @throws SQLException si hay un error en la base de datos.
-     * @throws IOException  si falta un archivo CSV o hay problema al leerlo.
+     * RESTAURAR COPIA ESPECÍFICA
+     * ════════════════════════════════════════════════════════════════════════════
+     * 
+     * Restaura una copia seleccionada por el usuario.
+     * 
+     * PROCESO (TRANSACCIONAL):
+     *   1. Validar que la carpeta existe
+     *   2. Obtener conexión JDBC (setAutoCommit false)
+     *   3. try:
+     *      a. borrarTodosLosDatos() → DELETE en orden correcto (respeta FK)
+     *      b. restaurarDesdeCsv() → INSERT desde CSVs
+     *      c. connection.commit() → Ejecuta ambas operaciones
+     *   4. catch: connection.rollback() → Deshace cambios si hay error
+     *   5. finally: connection.setAutoCommit(true) → Vuelve a modo automático
+     * 
+     * TRANSACCIÓN ATOMICIDAD (ACID):
+     *   • Atómica: O todo se ejecuta o nada
+     *   • Consistente: Integridad referencial siempre respetada
+     *   • Aislada: No interfiere con otras conexiones
+     *   • Durable: Una vez committed, persiste
+     * 
+     * EJEMPLO:
+     *   Entrenador con Equipo:
+     *   • Si falla después de borrar Entrenador pero antes de insertar:
+     *   • rollback() rehace todo: Entrenador vuelve a estar
+     *   • Datos nunca se quedan en estado incompleto
+     * 
+     * @param copia Path de la carpeta backup a restaurar
+     * @return Path de la carpeta restaurada
+     * @throws SQLException si error en operaciones BD
+     * @throws IOException  si falta archivo CSV o permisos
      */
     public Path restaurarCopia(Path copia) throws SQLException, IOException {
+        // Validar que la carpeta existe y es un directorio
         if (copia == null || Files.notExists(copia) || !Files.isDirectory(copia)) {
             throw new IOException("La copia de seguridad seleccionada no existe: " + copia);
         }
 
+        // Obtener conexión e iniciar transacción manual
         try (Connection connection = obtenerConexion()) {
+            // setAutoCommit(false): No commitea automáticamente cada SQL
+            // Esperamos a commit() o rollback() manual
             connection.setAutoCommit(false);
             try {
+                // PASO 1: Borrar todos los datos en orden correcto
                 borrarTodosLosDatos(connection);
+                
+                // PASO 2: Restaurar desde CSVs
                 restaurarDesdeCsv(connection, copia);
+                
+                // PASO 3: Ejecutar ambas operaciones (commit de la transacción)
                 connection.commit();
+                
+                // PASO 4: Registrar en archivo la restauración que se hizo
                 registrarRestauracion(copia);
             } catch (SQLException | IOException ex) {
+                // Si algo falla: rollback (deshacer cambios)
                 connection.rollback();
                 throw ex;
             } finally {
+                // Volver a autocommit automático
                 connection.setAutoCommit(true);
             }
         }
@@ -158,7 +301,11 @@ public class BackupManager {
     }
 
     /**
-     * Lista todas las copias de seguridad disponibles ordenadas desde la más antigua a la más reciente.
+     * LISTAR TODAS LAS COPIAS DISPONIBLES
+     * ════════════════════════════════════════════════════════════════════════════
+     * 
+     * @return Lista de Paths ordenadas de antigua a nueva
+     * @throws IOException si no se puede leer la carpeta backups/
      */
     public List<Path> listarCopias() throws IOException {
         Path backupsRoot = Paths.get(BACKUP_ROOT);
@@ -180,7 +327,18 @@ public class BackupManager {
     }
 
     /**
-     * Devuelve información del estado de backup y restauración.
+     * OBTENER INFORMACIÓN DE BACKUP
+     * ════════════════════════════════════════════════════════════════════════════
+     * 
+     * Muestra al usuario:
+     *   • Cuál fue la última copia de seguridad realizada
+     *   • Cuándo fue la última restauración
+     *   • Desde qué copia se restauró
+     * 
+     * Se usa en MainWindow → Botón "Estado de Backup"
+     * 
+     * @return String con información formateada
+     * @throws IOException si no se pueden leer archivos
      */
     public String obtenerInformacionBackup() throws IOException {
         StringBuilder info = new StringBuilder();

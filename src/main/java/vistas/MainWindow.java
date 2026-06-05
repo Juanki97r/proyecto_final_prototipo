@@ -7,23 +7,79 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
+ * CLASE MAINWINDOW
+ * ═════════════════════════════════════════════════════════════════════════════════
  * Ventana principal de la aplicación Pokémon.
  * Desde aquí se accede a la gestión de todas las entidades.
+ * 
+ * PATRÓN: FRAME (ventana principal con Swing)
+ *   • Hereda de JFrame
+ *   • Contiene botones para cada operación principal
+ *   • Abre ventanas secundarias (dialogs) para cada entidad
+ * 
+ * ARQUITECTURA Swing:
+ *   • JFrame: Ventana principal
+ *   • JPanel: Contenedor de componentes
+ *   • JButton: Botones interactivos
+ *   • GridLayout: Distribuye botones en filas/columnas
+ * 
+ * FLUJO:
+ *   Usuario hace clic en botón → ActionListener se ejecuta
+ *   → Se abre la ventana correspondiente (PokemonView, EntrenadorView, etc.)
+ *   → Usuario interactúa con esa ventana
+ *   → Vuelve a MainWindow cuando cierra la ventana secundaria
  */
 public class MainWindow extends JFrame {
 
+    /**
+     * Constructor: Inicializa la interfaz gráfica principal
+     * 
+     * CONFIGURACIÓN:
+     *   • setTitle(): Título de la ventana
+     *   • setSize(): Tamaño inicial (600x400)
+     *   • setDefaultCloseOperation(): Qué hacer al cerrar (EXIT_ON_CLOSE)
+     *   • setLocationRelativeTo(): Centra en la pantalla
+     */
     public MainWindow() {
         setTitle("Gestión Base de Datos Pokémon");
         setSize(600, 400);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
-        // Panel principal
+        /**
+         * PANEL PRINCIPAL
+         * 
+         * JPanel: Contenedor para agrupar componentes
+         * GridLayout(7, 2, 10, 10):
+         *   • 7 filas x 2 columnas
+         *   • 10 píxeles de espaciado horizontal
+         *   • 10 píxeles de espaciado vertical
+         * 
+         * setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20)):
+         *   • Margen de 20 píxeles en todos los lados (N, W, S, E)
+         */
         JPanel panel = new JPanel();
         panel.setLayout(new GridLayout(7, 2, 10, 10));
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        // Botones para cada entidad
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // CREACIÓN DE BOTONES PARA CADA ENTIDAD
+        // ═══════════════════════════════════════════════════════════════════════════════
+        
+        /**
+         * BOTONES DE GESTIÓN DE ENTIDADES
+         * 
+         * Cada botón abrirá una ventana (View) para gestionar esa entidad:
+         *   • EntrenadorView: CRUD de Entrenadores
+         *   • PokemonView: CRUD de Pokémons
+         *   • EquipoView: CRUD de Equipos
+         *   • etc.
+         * 
+         * Las vistas contienen:
+         *   • Tabla con datos actuales
+         *   • Formulario para crear/editar
+         *   • Botones Create, Update, Delete
+         */
         JButton btnEntrenador = new JButton("Gestionar Entrenadores");
         JButton btnRegion = new JButton("Gestionar Regiones");
         JButton btnTipo = new JButton("Gestionar Tipos");
@@ -33,6 +89,13 @@ public class MainWindow extends JFrame {
         JButton btnMedallas = new JButton("Gestionar Medallas");
         JButton btnDetallePokemon = new JButton("Gestionar Detalles Pokémon");
         JButton btnDetalleEquipo = new JButton("Gestionar Detalles Equipo");
+        
+        /**
+         * BOTONES DE BACKUP/RESTAURACIÓN
+         * 
+         * Estas funciones están integradas en MainWindow (no en vistas separadas)
+         * porque son operaciones globales de toda la BD
+         */
         JButton btnBackup = new JButton("Crear Copia de Seguridad");
         JButton btnRestore = new JButton("Restaurar copia de seguridad");
         JButton btnEstadoBackup = new JButton("Estado de Backup");
@@ -53,7 +116,20 @@ public class MainWindow extends JFrame {
         panel.add(btnEstadoBackup);
         panel.add(btnSalir);
 
-        // Action listeners para abrir las ventanas de gestión
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // ACTION LISTENERS (Manejadores de eventos)
+        // ═══════════════════════════════════════════════════════════════════════════════
+        
+        /**
+         * PATRÓN OBSERVER (escuchador de eventos)
+         * 
+         * Cada botón tiene un ActionListener que se ejecuta cuando el usuario lo clica.
+         * 
+         * btnEntrenador.addActionListener(e -> abrirVentanaGestion(new EntrenadorView()));
+         *   • e: Evento del clic
+         *   • new EntrenadorView(): Crea la ventana para gestionar Entrenadores
+         *   • abrirVentanaGestion(): Método que abre la ventana
+         */
         btnEntrenador.addActionListener(e -> abrirVentanaGestion(new EntrenadorView()));
         btnRegion.addActionListener(e -> abrirVentanaGestion(new RegionView()));
         btnTipo.addActionListener(e -> abrirVentanaGestion(new TipoView()));
@@ -64,7 +140,24 @@ public class MainWindow extends JFrame {
         btnDetallePokemon.addActionListener(e -> abrirVentanaGestion(new DetallePokemonView()));
         btnDetalleEquipo.addActionListener(e -> abrirVentanaGestion(new DetalleEquipoView()));
 
-        // Botón de copia de seguridad
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // BOTÓN DE COPIA DE SEGURIDAD
+        // ═══════════════════════════════════════════════════════════════════════════════
+        
+        /**
+         * Botón BACKUP: Crea una copia de seguridad de toda la BD
+         * 
+         * FLUJO:
+         *   1. Usuario clica el botón
+         *   2. Se crea un BackupManager
+         *   3. crearCopiaDeSeguridad() → Exporta todas las tablas a CSV
+         *   4. Se crea carpeta con timestamp (ej: backups/20260604_153021/)
+         *   5. Se muestra un mensaje al usuario con la ruta
+         * 
+         * MANEJO DE EXCEPCIONES:
+         *   • try: Intenta crear backup
+         *   • catch: Si falla (BD no accesible), muestra error
+         */
         btnBackup.addActionListener(e -> {
             try {
                 Path carpeta = new BackupManager().crearCopiaDeSeguridad();
@@ -80,7 +173,24 @@ public class MainWindow extends JFrame {
             }
         });
 
-        // Botón de restauración
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // BOTÓN DE RESTAURACIÓN
+        // ═══════════════════════════════════════════════════════════════════════════════
+        
+        /**
+         * Botón RESTORE: Restaura una copia de seguridad anterior
+         * 
+         * FLUJO:
+         *   1. Obtener lista de copias disponibles
+         *   2. Mostrar diálogo para que usuario seleccione una
+         *   3. Mostrar confirmación (advierte que borrará datos actuales)
+         *   4. Si acepta: restaurar la copia seleccionada
+         * 
+         * IMPORTANTE:
+         *   • Borra TODOS los datos actuales
+         *   • Restaura exactamente los datos del backup elegido
+         *   • Es una operación destructiva (de ahí el warning)
+         */
         btnRestore.addActionListener(e -> {
             try {
                 BackupManager backupManager = new BackupManager();
@@ -164,8 +274,9 @@ public class MainWindow extends JFrame {
     }
 
     /**
-     * Método auxiliar para abrir una ventana de gestión.
-     * Hace que la ventana sea modal y se centre en la pantalla.
+     * Método auxiliar para abrir una ventana de gestión
+     * 
+     * @param ventana La ventana (View) a abrir
      */
     private void abrirVentanaGestion(JFrame ventana) {
         try {
@@ -180,6 +291,10 @@ public class MainWindow extends JFrame {
         }
     }
 
+    /**
+     * Método main de prueba
+     * Permite ejecutar MainWindow directamente (sin pasar por Main)
+     */
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             new MainWindow().setVisible(true);

@@ -8,16 +8,50 @@ import javax.persistence.TypedQuery;
 import java.util.List;
 
 /**
+ * CLASE ENTRENADORCONTROLLER
+ * ═════════════════════════════════════════════════════════════════════════════════
  * Controlador de operaciones CRUD para la entidad Entrenador.
- *
- * Aquí definimos manualmente cada método para comprender cómo funciona
- * cada operación JPA en lugar de delegar en una clase genérica.
+ * 
+ * NOTA IMPORTANTE: Este controlador NO hereda de GenericService
+ * porque queremos mostrar explícitamente cómo funciona JPA
+ * en la aplicación educativa.
+ * 
+ * PATRÓN MVC (Model-View-Controller):
+ *   • Model: Entidad Entrenador
+ *   • View: EntrenadorView (interfaz gráfica Swing)
+ *   • Controller: Este archivo (lógica de negocio)
+ * 
+ * FLUJO DE DATOS:
+ *   Usuario hace clic en botón → EntrenadorView.crearEntrenador()
+ *   → EntrenadorController.create(entrenador)
+ *   → Base de datos recibe INSERT
+ *   → EntrenadorView actualiza la tabla
+ * 
+ * CONCEPTOS CLAVE EN CADA MÉTODO:
+ *   • EntityManager: Contexto de persistencia
+ *   • EntityTransaction: Transacción (ACID)
+ *   • JPAUtil.getEntityManager(): Obtiene EntityManager
+ *   • persist() / merge() / remove(): Operaciones JPA
+ *   • finally { em.close() }: Liberar conexión
  */
 public class EntrenadorController {
 
     /**
-     * Crea un nuevo entrenador en la base de datos.
-     * Se usa EntityManager.persist dentro de una transacción.
+     * CREATE: Crea un nuevo Entrenador
+     * 
+     * OPERACIÓN: INSERT en la tabla ENTRENADOR
+     * 
+     * FLUJO:
+     *   1. Obtener EntityManager (conexión a BD)
+     *   2. Obtener transacción
+     *   3. Iniciar transacción (tx.begin)
+     *   4. Persistir la entidad (em.persist) - MARCADA para insertar
+     *   5. Hacer commit (tx.commit) - EJECUTA el INSERT
+     *   6. Si error: rollback (deshacer cambios)
+     *   7. Siempre: cerrar EntityManager
+     * 
+     * @param entrenador El nuevo Entrenador a crear
+     * @return El Entrenador creado
      */
     public Entrenador create(Entrenador entrenador) {
         // Obtenemos un EntityManager desde nuestra utilidad.
@@ -43,7 +77,12 @@ public class EntrenadorController {
     }
 
     /**
-     * Busca un entrenador por su clave primaria.
+     * READ: Busca un Entrenador por su ID (clave primaria)
+     * 
+     * OPERACIÓN: SELECT WHERE identrenador = ?
+     * 
+     * @param id El identrenador a buscar
+     * @return El Entrenador encontrado, o null si no existe
      */
     public Entrenador findById(Integer id) {
         // Usamos EntityManager para realizar una consulta de entidad por su ID.
@@ -56,7 +95,17 @@ public class EntrenadorController {
     }
 
     /**
-     * Devuelve todos los entrenadores de la base de datos.
+     * READ ALL: Obtiene TODOS los Entrenadores
+     * 
+     * OPERACIÓN: SELECT * FROM ENTRENADOR
+     * 
+     * JPQL (JPA Query Language):
+     *   • "SELECT e FROM Entrenador e"
+     *   • Es SQL orientado a objetos (no SQL directo)
+     *   • Em translada a SQL automáticamente
+     *   • TypedQuery<T> asegura que el resultado es una List<Entrenador>
+     * 
+     * @return Lista de todos los Entrenadores en la BD
      */
     public List<Entrenador> findAll() {
         EntityManager em = JPAUtil.getEntityManager();
@@ -70,8 +119,24 @@ public class EntrenadorController {
     }
 
     /**
-     * Actualiza un entrenador existente.
-     * Se usa merge para sincronizar el estado de la entidad con el contexto de persistencia.
+     * UPDATE: Actualiza un Entrenador existente
+     * 
+     * OPERACIÓN: UPDATE ENTRENADOR SET nombre=?, edad=? WHERE identrenador=?
+     * 
+     * PATRÓN merge():
+     *   • La entidad que pasas puede venir DETACHED (desvinculada del contexto)
+     *   • merge() la revincula al EntityManager actual
+     *   • Retorna la entidad MANAGED (gestionada)
+     *   • En commit, Hibernate genera el UPDATE
+     * 
+     * EJEMPLO:
+     *   Entrenador ash = new Entrenador();
+     *   ash.setIdentrenador(1);
+     *   ash.setNombre("Ash Ketchum");
+     *   entrenadorController.update(ash);  // Actualiza en BD
+     * 
+     * @param entrenador El Entrenador con cambios
+     * @return El Entrenador actualizado
      */
     public Entrenador update(Entrenador entrenador) {
         EntityManager em = JPAUtil.getEntityManager();
@@ -93,8 +158,21 @@ public class EntrenadorController {
     }
 
     /**
-     * Elimina un entrenador por su clave primaria.
-     * Primero se busca la entidad dentro del contexto y luego se elimina.
+     * DELETE: Elimina un Entrenador por su ID
+     * 
+     * OPERACIÓN: DELETE FROM ENTRENADOR WHERE identrenador=?
+     * 
+     * PASOS IMPORTANTES:
+     *   1. find(): Obtener la entidad MANAGED (necesario para remove)
+     *   2. remove(): Marcar para eliminar
+     *   3. commit(): EJECUTA el DELETE en BD
+     * 
+     * CASCADA:
+     *   • Si el Entrenador tiene un Equipo (cascade = REMOVE)
+     *   • El Equipo también se elimina
+     *   • Las Medallas NO se eliminan (solo referencia)
+     * 
+     * @param id El identrenador a eliminar
      */
     public void delete(Integer id) {
         EntityManager em = JPAUtil.getEntityManager();
