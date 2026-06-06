@@ -103,8 +103,8 @@ public class MedallasPK implements Serializable {
     public void setCodgym(int codgym) {
         this.codgym = codgym;
     }
-}
-    }
+
+    
 
     // equals() y hashCode() son OBLIGATORIOS para claves embebidas
     // JPA usa estos métodos para comparar y gestionar las claves

@@ -83,8 +83,8 @@ public class DetalleEquipoPK implements Serializable {
     public void setNumslot(int numslot) {
         this.numslot = numslot;
     }
-}
-    }
+
+    
 
     // equals() y hashCode() OBLIGATORIOS para claves embebidas
     @Override
@@ -105,3 +105,4 @@ public class DetalleEquipoPK implements Serializable {
         return result;
     }
 }
+

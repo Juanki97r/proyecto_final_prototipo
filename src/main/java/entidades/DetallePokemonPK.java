@@ -83,7 +83,7 @@ public class DetallePokemonPK implements Serializable {
     public void setCodtipo(int codtipo) {
         this.codtipo = codtipo;
     }
-}
+
 
     // equals() y hashCode() OBLIGATORIOS para claves embebidas
     @Override
@@ -104,3 +104,4 @@ public class DetallePokemonPK implements Serializable {
         return result;
     }
 }
+
